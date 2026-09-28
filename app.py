@@ -2,76 +2,147 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# Page Setup
-st.set_page_config(page_title="Parcl Real Estate Intelligence", layout="wide")
+# -------------------------------------------------------------
+# 1. PAGE CONFIGURATION
+# -------------------------------------------------------------
+st.set_page_config(
+    page_title="Real Estate Buyer Segmentation Dashboard",
+    page_icon="🏢",
+    layout="wide"
+)
 
-st.title(" Real Estate Market Intelligence Dashboard")
-st.subheader("AI-Driven Buyer Segmentation & Investment Profiling")
+st.title("🏢 Real Estate Buyer Segmentation & Investment Profiling")
+st.markdown("Interactive dashboard for analyzing buyer demographics, total spend, and investment clusters.")
 
-# Load Data
+# -------------------------------------------------------------
+# 2. DATA LOADING FUNCTION
+# -------------------------------------------------------------
 @st.cache_data
 def load_data():
-    return pd.read_csv("real_estate_buyer_segments.csv")
+    # Dataset File Path (તમારી જરૂરિયાત મુજબ ફાઈલનું નામ બદલી શકો છો)
+    try:
+        df = pd.read_csv("real_estate_buyers.csv")
+    except FileNotFoundError:
+        # ફાઈલ ના મળે તો સેમ્પલ ડેમો ડેટા સેટ કરશે
+        df = pd.DataFrame({
+            'Age': [25, 34, 45, 52, 29, 41, 38, 60],
+            'Total Spend': [150000, 320000, 450000, 800000, 210000, 500000, 380000, 950000],
+            'region': ['North', 'South', 'East', 'West', 'North', 'East', 'South', 'West'],
+            'client_type': ['Individual', 'Corporate', 'Individual', 'Investor', 'Individual', 'Corporate', 'Investor', 'Corporate']
+        })
+    
+    # જો Age કોલમ ના હોય અને Date of Birth હોય તો Age ગણી લેવું
+    if 'Age' not in df.columns and 'date_of_birth' in df.columns:
+        df['date_of_birth'] = pd.to_datetime(df['date_of_birth'])
+        df['Age'] = (pd.to_datetime('today') - df['date_of_birth']).dt.days // 365
+        
+    return df
 
 try:
     df = load_data()
-except Exception:
-    st.error("Dataset 'real_estate_buyer_segments.csv' not found!")
-    st.stop()
 
-# Sidebar Filters
-st.sidebar.header("User Controls & Filters")
-country_filter = st.sidebar.multiselect("Select Country", options=sorted(df['country'].dropna().unique()), default=sorted(df['country'].dropna().unique()))
-region_filter = st.sidebar.multiselect("Select Region", options=sorted(df['region'].dropna().unique()), default=sorted(df['region'].dropna().unique()))
-purpose_filter = st.sidebar.multiselect("Acquisition Purpose", options=sorted(df['acquisition_purpose'].dropna().unique()), default=sorted(df['acquisition_purpose'].dropna().unique()))
-client_filter = st.sidebar.multiselect("Client Type", options=sorted(df['client_type'].dropna().unique()), default=sorted(df['client_type'].dropna().unique()))
+    # -------------------------------------------------------------
+    # 3. SIDEBAR FILTERS (AGE & TOTAL SPEND INCLUDED)
+    # -------------------------------------------------------------
+    st.sidebar.header("🔍 User Filters")
 
-# Filter Data
-filtered_df = df[
-    (df['country'].isin(country_filter)) &
-    (df['region'].isin(region_filter)) &
-    (df['acquisition_purpose'].isin(purpose_filter)) &
-    (df['client_type'].isin(client_filter))
-]
+    # A. Age Range Slider Filter
+    min_age = int(df['Age'].min()) if 'Age' in df.columns else 18
+    max_age = int(df['Age'].max()) if 'Age' in df.columns else 80
+    selected_age = st.sidebar.slider(
+        "🎂 Select Age Range",
+        min_value=min_age,
+        max_value=max_age,
+        value=(min_age, max_age)
+    )
 
-# Tabs
-tab1, tab2, tab3, tab4 = st.tabs([
-    "Buyer Segmentation Overview", 
-    "Investor Behavior Dashboard", 
-    "Geographic Buyer Analysis", 
-    "Segment Insights Panel"
-])
+    # B. Total Spend Range Slider Filter
+    min_spend = float(df['Total Spend'].min()) if 'Total Spend' in df.columns else 10000.0
+    max_spend = float(df['Total Spend'].max()) if 'Total Spend' in df.columns else 1000000.0
+    selected_spend = st.sidebar.slider(
+        "💰 Select Total Spend Range ($)",
+        min_value=min_spend,
+        max_value=max_spend,
+        value=(min_spend, max_spend)
+    )
 
-# Tab 1: Buyer Segmentation Overview
-with tab1:
-    st.header("Buyer Segmentation Overview")
-    col1, col2 = st.columns(2)
-    with col1:
-        fig_pie = px.pie(filtered_df, names='Buyer_Segment', title='Cluster Distribution', hole=0.4)
-        st.plotly_chart(fig_pie, use_container_width=True)
-    with col2:
-        fig_bar = px.bar(filtered_df, x='Buyer_Segment', color='client_type', barmode='group', title='Buyer Segment by Client Type')
-        st.plotly_chart(fig_bar, use_container_width=True)
+    # C. Additional Region & Client Type Filters
+    selected_regions = st.sidebar.multiselect(
+        "📍 Select Region",
+        options=df['region'].unique() if 'region' in df.columns else [],
+        default=df['region'].unique() if 'region' in df.columns else []
+    )
 
-# Tab 2: Investor Behavior Dashboard
-with tab2:
-    st.header("Investor Behavior Dashboard")
-    col1, col2 = st.columns(2)
-    with col1:
-        fig_box = px.box(filtered_df, x='Buyer_Segment', y='age', color='loan_applied', title='Age Distribution & Loan Status')
-        st.plotly_chart(fig_box, use_container_width=True)
-    with col2:
-        fig_scat = px.scatter(filtered_df, x='total_spent', y='satisfaction_score', color='Buyer_Segment', title='Total Spent vs Satisfaction')
-        st.plotly_chart(fig_scat, use_container_width=True)
+    selected_client_types = st.sidebar.multiselect(
+        "👤 Select Client Type",
+        options=df['client_type'].unique() if 'client_type' in df.columns else [],
+        default=df['client_type'].unique() if 'client_type' in df.columns else []
+    )
 
-# Tab 3: Geographic Buyer Analysis
-with tab3:
-    st.header("Geographic Buyer Analysis")
-    fig_geo = px.histogram(filtered_df, x='region', color='Buyer_Segment', barmode='group', title='Buyer Segments by Region')
-    st.plotly_chart(fig_geo, use_container_width=True)
+    # -------------------------------------------------------------
+    # 4. FILTERING LOGIC
+    # -------------------------------------------------------------
+    filtered_df = df[
+        (df['Age'] >= selected_age[0]) & (df['Age'] <= selected_age[1]) &
+        (df['Total Spend'] >= selected_spend[0]) & (df['Total Spend'] <= selected_spend[1])
+    ]
 
-# Tab 4: Segment Insights Panel
-with tab4:
-    st.header("Segment Insights Panel")
-    st.subheader("Cluster Average Metrics")
-    st.dataframe(filtered_df.groupby('Buyer_Segment')[['age', 'satisfaction_score', 'total_spent', 'property_count']].mean())
+    if 'region' in df.columns and selected_regions:
+        filtered_df = filtered_df[filtered_df['region'].isin(selected_regions)]
+    if 'client_type' in df.columns and selected_client_types:
+        filtered_df = filtered_df[filtered_df['client_type'].isin(selected_client_types)]
+
+    # -------------------------------------------------------------
+    # 5. DASHBOARD METRICS (KPIs)
+    # -------------------------------------------------------------
+    st.markdown("---")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    col1.metric("👥 Total Buyers", f"{len(filtered_df):,}")
+    col2.metric("🎂 Avg Age", f"{filtered_df['Age'].mean():.1f} Yrs" if 'Age' in filtered_df and len(filtered_df) > 0 else "N/A")
+    col3.metric("💳 Avg Spend", f"${filtered_df['Total Spend'].mean():,.2f}" if 'Total Spend' in filtered_df and len(filtered_df) > 0 else "N/A")
+    col4.metric("💵 Total Sales Volume", f"${filtered_df['Total Spend'].sum():,.2f}" if 'Total Spend' in filtered_df and len(filtered_df) > 0 else "N/A")
+
+    st.markdown("---")
+
+    # -------------------------------------------------------------
+    # 6. VISUALIZATION TABS
+    # -------------------------------------------------------------
+    tab1, tab2, tab3 = st.tabs(["📊 Buyer Analysis", "🗺️ Regional Insights", "📋 Data Inspector"])
+
+    with tab1:
+        st.subheader("Age vs. Total Spend Analysis")
+        if 'Age' in filtered_df.columns and 'Total Spend' in filtered_df.columns and len(filtered_df) > 0:
+            fig_scatter = px.scatter(
+                filtered_df, 
+                x='Age', 
+                y='Total Spend', 
+                color='client_type' if 'client_type' in filtered_df.columns else None,
+                hover_data=['region'] if 'region' in filtered_df.columns else None,
+                title="Buyer Segmentation: Age vs. Total Spend"
+            )
+            st.plotly_chart(fig_scatter, use_container_width=True)
+        else:
+            st.warning("No data available for current selection.")
+
+    with tab2:
+        st.subheader("Regional Investment Breakdown")
+        if 'region' in filtered_df.columns and 'Total Spend' in filtered_df.columns and len(filtered_df) > 0:
+            region_summary = filtered_df.groupby('region')['Total Spend'].sum().reset_index()
+            fig_region = px.bar(
+                region_summary,
+                x='region',
+                y='Total Spend',
+                color='region',
+                title="Total Investment Volume per Region"
+            )
+            st.plotly_chart(fig_region, use_container_width=True)
+        else:
+            st.warning("No data available for current selection.")
+
+    with tab3:
+        st.subheader("Filtered Raw Dataset")
+        st.dataframe(filtered_df)
+
+except Exception as e:
+    st.error(f"Error loading dashboard: {e}")
